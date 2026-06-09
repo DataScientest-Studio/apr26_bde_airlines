@@ -349,15 +349,6 @@ def main():
     endpoints = [
         # Bounding box keeps cost at 2 credits instead of 4 for global
         ("states_all",       f"{BASE_URL}/states/all",        BBOX),
-
-        # Flight-level data — costs 4 credits each (live/<24h window)
-        ("flights_all",      f"{BASE_URL}/flights/all",       {"begin": BEGIN, "end": END}),
-        ("flights_aircraft", f"{BASE_URL}/flights/aircraft",  {"icao24": ICAO24, "begin": BEGIN, "end": END}),
-        ("arrivals",         f"{BASE_URL}/flights/arrival",   {"airport": AIRPORT, "begin": BEGIN, "end": END}),
-        ("departures",       f"{BASE_URL}/flights/departure", {"airport": AIRPORT, "begin": BEGIN, "end": END}),
-
-        # Experimental — may 404 if aircraft not currently flying
-        ("tracks",           f"{BASE_URL}/tracks/all",        {"icao24": ICAO24, "time": 0}),
     ]
 
     for name, url, params in endpoints:
