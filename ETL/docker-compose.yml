@@ -1,19 +1,4 @@
 services:
-  app:
-    build: .
-    container_name: airlines-app
-    working_dir: /app
-    volumes:
-      - .:/app
-    environment:
-      MONGO_URL: mongodb://user:pwd@mongodb:27017
-      OPENSKY_CLIENT_ID: 
-      OPENSKY_CLIENT_SECRET: 
-    command: >
-      sh -c "pip install -r requirements.txt && python import_api_mongodb.py"
-    depends_on:
-      - mongodb
-
   mongodb:
     image: mongo:latest
     container_name: mongodb
@@ -21,7 +6,7 @@ services:
       - "27017:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: 
-      MONGO_INITDB_ROOT_PASSWORD: 
+      MONGO_INITDB_ROOT_PASSWORD: 0
     volumes:
       - mongo_data:/data/db
 

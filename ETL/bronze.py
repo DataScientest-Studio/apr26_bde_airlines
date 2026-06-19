@@ -1,9 +1,7 @@
 import os
-import json
 import logging
 import requests
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from dotenv import load_dotenv
 from pymongo import MongoClient, errors as mongo_errors
 
@@ -23,10 +21,7 @@ END           = 1778623200
 AIRPORT       = "EDDF"
 ICAO24        = "3c675a"
 
-# Timestamped run folder — each run gets its own clean directory
-BASE_DIR      = "opensky_data"
 RUN_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
-OUTPUT_DIR    = os.path.join(BASE_DIR, f"run_{RUN_TIMESTAMP}")
 
 # Bounding box around Germany/Frankfurt (~50 sq° → 2 credits vs 4 for global)
 BBOX = {
@@ -38,12 +33,11 @@ BBOX = {
 
 # =============================================================================
 # LOGGING SETUP
-# Main log  → pipeline.log (root level)
-# Credit log → opensky_data/run_TIMESTAMP/credits.log
+# Main log    → pipeline.log (root level)
+# Credit log  → credits.log (root level)
 # Both loggers write to console as well
 # =============================================================================
 
-# Main logger — initialised immediately at module level
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -54,25 +48,12 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# Credit logger — initialised after output dir is created in setup_output_dir()
-credit_log = None
-
-def setup_credit_logger():
-    """
-    Set up dedicated logger for credit-related info.
-    Writes to credits.log inside the current run folder.
-    Avoids duplicate handlers if called more than once.
-    """
-    logger = logging.getLogger("credits")
-    logger.setLevel(logging.INFO)
-
-    if not logger.handlers:
-        credit_log_path = os.path.join(OUTPUT_DIR, "credits.log")
-        handler = logging.FileHandler(credit_log_path)
-        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
-        logger.addHandler(handler)
-
-    return logger
+_credit_logger = logging.getLogger("credits")
+_credit_logger.setLevel(logging.INFO)
+_credit_handler = logging.FileHandler("credits.log")
+_credit_handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+_credit_logger.addHandler(_credit_handler)
+credit_log = _credit_logger
 
 
 # =============================================================================
@@ -137,43 +118,6 @@ def get_db():
     except mongo_errors.ServerSelectionTimeoutError as e:
         log.error(f"Could not connect to MongoDB: {e}")
         raise
-
-
-# =============================================================================
-# FILE SETUP
-# Create timestamped run folder and initialise credit logger
-# =============================================================================
-def setup_output_dir():
-    """
-    Create timestamped run folder inside opensky_data/.
-    Initialise credit logger once folder exists.
-    """
-    global credit_log
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    log.info(f"Output directory ready: {OUTPUT_DIR}/")
-    log.info(f"Absolute path: {os.path.abspath(OUTPUT_DIR)}")
-    credit_log = setup_credit_logger()
-
-
-# =============================================================================
-# FILE WRITER
-# Each file named after its endpoint — folder timestamp separates runs
-# =============================================================================
-def save_to_file(name, data):
-    """
-    Write data to a JSON file inside the current run folder.
-    Filename is the endpoint name — run folder provides the timestamp.
-    """
-    path = os.path.join(OUTPUT_DIR, f"{name}.json")
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        log.info(f"File saved: {path}")
-        return path
-    except OSError as e:
-        # Non-fatal — log and continue, DB write may still succeed
-        log.warning(f"Could not write file for '{name}': {e}")
-        return None
 
 
 # =============================================================================
@@ -261,7 +205,7 @@ def log_credits(response, name):
 
 # =============================================================================
 # CORE FETCH FUNCTION
-# Fetches from API then saves to file AND MongoDB
+# Fetches from API then saves to MongoDB
 # =============================================================================
 def fetch_and_store(name, url, db, pipeline_run_id, params=None):
     """
@@ -310,8 +254,6 @@ def fetch_and_store(name, url, db, pipeline_run_id, params=None):
             log.warning(f"Empty response for '{name}' — nothing to store.")
             return
 
-        # Save to file and DB
-        save_to_file(name, data)
         save_to_db(db, name, data, pipeline_run_id)
 
     except requests.exceptions.ConnectionError:
@@ -326,24 +268,12 @@ def fetch_and_store(name, url, db, pipeline_run_id, params=None):
 # MAIN PIPELINE
 # =============================================================================
 def main():
-    # Unique ID for this run — ties all records and files together
-
-    print("__file__:", __file__)
-    print("dirname:", os.path.dirname(__file__))
-    print("BASE_DIR:", BASE_DIR)
-    print("OUTPUT_DIR:", OUTPUT_DIR)
-    print("Absolute OUTPUT_DIR:", os.path.abspath(OUTPUT_DIR))
-    
     pipeline_run_id = f"run_{RUN_TIMESTAMP}"
 
     log.info("=" * 60)
     log.info(f"PIPELINE START — {pipeline_run_id}")
     log.info("=" * 60)
 
-    # Setup folders and loggers
-    setup_output_dir()
-
-    # Connect to MongoDB
     db = get_db()
 
     endpoints = [
