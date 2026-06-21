@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    container_name: etl_app
+    env_file:
+      - .env
+    command: bash run_pipeline.sh
+    volumes:
+      - .:/app
