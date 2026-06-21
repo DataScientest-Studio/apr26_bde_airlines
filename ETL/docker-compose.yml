@@ -1,14 +1,9 @@
 services:
-  mongodb:
-    image: mongo:latest
-    container_name: mongodb
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: 
-      MONGO_INITDB_ROOT_PASSWORD: 0
+  app:
+    build: .
+    container_name: etl_app
+    env_file:
+      - .env
+    command: bash run_pipeline.sh
     volumes:
-      - mongo_data:/data/db
-
-volumes:
-  mongo_data:
+      - .:/app
